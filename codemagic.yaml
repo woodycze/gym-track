@@ -1,0 +1,22 @@
+workflows:
+  ios-workflow:
+    name: iOS Workflow
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter packages pub get
+      - name: Build iOS IPA
+        script: |
+          flutter build ios --release
+          cd build/ios/iphoneos
+          xcrun -sdk iphoneos PackageApplication -v "Runner.app" -o "Runner.ipa"
+    artifacts:
+      - build/ios/iphoneos/Runner.ipa
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com 
