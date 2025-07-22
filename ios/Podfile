@@ -1,0 +1,4 @@
+platform :ios, '13.0'
+
+# Zbytek Podfile vygeneruje Flutter/CocoaPods automaticky při buildu.
+# Pokud potřebujete vlastní úpravy, můžete je přidat níže. 
