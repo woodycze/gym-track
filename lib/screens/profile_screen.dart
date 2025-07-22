@@ -3,11 +3,14 @@ import 'package:fl_chart/fl_chart.dart';
 import '../models.dart';
 import '../widgets/glassmorphic_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String title = 'Profil';
   final List<Workout> pastWorkouts;
-  const ProfileScreen({super.key, required this.pastWorkouts});
+  final Profile profile;
+  final Function(Profile) onEditProfile;
+  const ProfileScreen({super.key, required this.pastWorkouts, required this.profile, required this.onEditProfile});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -135,26 +138,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Text('Základní údaje', style: theme.textTheme.titleLarge),
           const SizedBox(height: 24),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Jméno'),
-          ),
-          const SizedBox(height: 16),
-          TextField(controller: _ageController, decoration: const InputDecoration(labelText: 'Věk'), keyboardType: TextInputType.number),
-          const SizedBox(height: 16),
-          TextField(controller: _heightController, decoration: const InputDecoration(labelText: 'Výška (cm)'), keyboardType: TextInputType.number),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _selectedGender,
-            decoration: const InputDecoration(labelText: 'Pohlaví'),
-            dropdownColor: theme.cardColor,
-            items: <String>['Muž', 'Žena', 'Jiné'].map<DropdownMenuItem<String>>((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
-            onChanged: (String? newValue) => setState(() => _selectedGender = newValue!),
-          ),
+          _buildReadOnlyRow('Věk', widget.profile.age),
+          const SizedBox(height: 12),
+          _buildReadOnlyRow('Výška (cm)', widget.profile.height),
+          const SizedBox(height: 12),
+          _buildReadOnlyRow('Pohlaví', widget.profile.gender),
+          const SizedBox(height: 12),
+          _buildReadOnlyRow('Cíl', widget.profile.goal),
           const SizedBox(height: 24),
-          ElevatedButton(onPressed: _saveName, child: const Text('Uložit údaje')),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.edit),
+            label: const Text('Upravit profil'),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => SettingsScreen(
+                    profile: widget.profile,
+                    onProfileUpdate: (profile) {
+                      widget.onEditProfile(profile);
+                      Navigator.of(context).pop();
+                    },
+                    onDataExport: () {},
+                    onDataImport: () {},
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReadOnlyRow(String label, String value) {
+    return Row(
+      children: [
+        Text('$label:', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w500)),
+        const SizedBox(width: 12),
+        Expanded(child: Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+      ],
     );
   }
 

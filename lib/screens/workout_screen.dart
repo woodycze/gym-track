@@ -17,6 +17,7 @@ class WorkoutScreen extends StatefulWidget {
   final VoidCallback onCancel;
   final Function(List<Exercise>) onUpdateWorkout;
   final Function(String) onDismissNotification;
+  final Profile profile;
 
   const WorkoutScreen({
     super.key,
@@ -30,6 +31,7 @@ class WorkoutScreen extends StatefulWidget {
     required this.onCancel,
     required this.onUpdateWorkout,
     required this.onDismissNotification,
+    required this.profile,
   });
 
   @override
@@ -44,6 +46,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
   int _completedSets = 0;
   int _totalSets = 0;
   bool _useCircularTimer = false;
+
+  // Přidám proměnnou pro RPE (subjektivní náročnost) ke každému cviku
+  Map<String, int> _exerciseRPE = {};
 
   @override
   void initState() {
@@ -205,7 +210,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
       widget.currentWorkout.add(Exercise(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: exercise.name,
-        notes: _getProgressionSuggestion(exercise.name),
+        notes: '', // už žádné automatické doporučení v notes
         sets: [ExerciseSet(weight: 50, reps: 8, done: false)],
       ));
     });
@@ -220,7 +225,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
       widget.currentWorkout.addAll(template.exercises.map((e) => Exercise(
           id: DateTime.now().millisecondsSinceEpoch.toString() + e.name,
           name: e.name,
-          notes: _getProgressionSuggestion(e.name),
+          notes: '', // už žádné automatické doporučení v notes
           sets: e.sets.map((s) => ExerciseSet(weight: s.weight, reps: s.reps, done: false)).toList()
       )));
     });
@@ -320,52 +325,65 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
     );
   }
 
-  String _getProgressionSuggestion(String exerciseName) {
+  // Inteligentní kouč pro doporučení váhy/opakování s konkrétním deload doporučením
+  String getSmartSuggestion(String exerciseName) {
+    final goal = widget.profile.goal;
+    final exercise = widget.currentWorkout.firstWhere((e) => e.name == exerciseName, orElse: () => Exercise(id: '', name: '', sets: []));
+    final rpe = _exerciseRPE[exercise.id];
     final pastPerformances = <Exercise>[];
     for (var workout in widget.pastWorkouts.reversed) {
       try {
-        final exercise = workout.exercises.firstWhere((ex) => ex.name == exerciseName);
-        pastPerformances.add(exercise);
-      } catch (e) {
-        // Cvik v tomto tréninku nebyl, pokračujeme dál
-      }
+        final ex = workout.exercises.firstWhere((ex) => ex.name == exerciseName);
+        pastPerformances.add(ex);
+      } catch (e) {}
     }
 
     if (pastPerformances.isEmpty) {
-      return "První trénink tohoto cviku. Hodně štěstí!";
+      return "První trénink tohoto cviku. Začni konzervativně a sleduj, jak se cítíš!";
     }
 
-    final lastWorkout = pastPerformances[0];
-    final heaviestSetLast = lastWorkout.sets.fold<ExerciseSet>(
-        ExerciseSet(weight: 0, reps: 0),
-            (max, set) => set.weight > max.weight ? set : max
-    );
-
-    if (pastPerformances.length < 2) {
-      if (heaviestSetLast.weight > 0) {
-        final newWeight = heaviestSetLast.weight + 2.0;
-        return "Naposledy: ${heaviestSetLast.weight} kg x ${heaviestSetLast.reps} op. Zkus dnes ${newWeight} kg!";
+    // --- Nová logika: analyzujeme trend 5 tréninků, průměrná váha i opakování ---
+    final trendCount = pastPerformances.length >= 5 ? 5 : pastPerformances.length;
+    final lastN = pastPerformances.take(trendCount).toList();
+    List<double> avgWeights = [];
+    List<double> avgReps = [];
+    for (var perf in lastN) {
+      if (perf.sets.isNotEmpty) {
+        avgWeights.add(perf.sets.map((s) => s.weight).reduce((a, b) => a + b) / perf.sets.length);
+        avgReps.add(perf.sets.map((s) => s.reps).reduce((a, b) => a + b) / perf.sets.length);
       }
-      return "Naposledy: ${heaviestSetLast.reps} opakování. Zkus dnes přidat jedno navíc!";
     }
-
-    final previousWorkout = pastPerformances[1];
-    final heaviestSetPrevious = previousWorkout.sets.fold<ExerciseSet>(
-        ExerciseSet(weight: 0, reps: 0),
-            (max, set) => set.weight > max.weight ? set : max
-    );
-
-    if (heaviestSetLast.weight <= heaviestSetPrevious.weight && heaviestSetLast.weight > 0) {
-      final newReps = heaviestSetLast.reps + 1;
-      return "Váha se drží. Zkus přidat opakování! Naposledy ${heaviestSetLast.reps}, dnes zkus ${newReps}.";
+    // Pokud je méně než 2 záznamy, doporučuj opatrnost
+    if (avgWeights.length < 2 || avgReps.length < 2) {
+      return "Zatím máš málo záznamů. Sleduj, jak se cítíš a postupuj opatrně.";
     }
-
-    if (heaviestSetLast.weight > 0) {
-      final newWeight = heaviestSetLast.weight + 2.0;
-      return "Naposledy: ${heaviestSetLast.weight} kg x ${heaviestSetLast.reps} op. Zkus dnes ${newWeight} kg!";
+    // Zjisti trend váhy a opakování
+    bool weightStagnates = avgWeights.every((w) => (w - avgWeights[0]).abs() < 0.01);
+    bool repsStagnate = avgReps.every((r) => (r - avgReps[0]).abs() < 0.01);
+    bool weightDecreases = true;
+    bool repsDecrease = true;
+    for (int i = 1; i < avgWeights.length; i++) {
+      if (avgWeights[i] >= avgWeights[i - 1]) weightDecreases = false;
+      if (avgReps[i] >= avgReps[i - 1]) repsDecrease = false;
     }
-
-    return "Naposledy: ${heaviestSetLast.reps} opakování. Zkus dnes přidat jedno navíc!";
+    bool weightIncreases = true;
+    bool repsIncrease = true;
+    for (int i = 1; i < avgWeights.length; i++) {
+      if (avgWeights[i] <= avgWeights[i - 1]) weightIncreases = false;
+      if (avgReps[i] <= avgReps[i - 1]) repsIncrease = false;
+    }
+    // Personalizované doporučení
+    if (weightStagnates && repsStagnate && trendCount == 5) {
+      return "Stagnace: 5x stejný průměr váhy i opakování. Zvaž změnu tréninku nebo schématu!";
+    }
+    if (weightDecreases || repsDecrease) {
+      return "Pokles výkonu: Průměrná váha nebo opakování klesají. Doporučuji deload nebo více regenerace!";
+    }
+    if (weightIncreases || repsIncrease) {
+      return "Progres: Průměrná váha nebo opakování rostou. Jen tak dál! Pokud se cítíš dobře, můžeš zkusit přidat váhu nebo opakování.";
+    }
+    // Výchozí doporučení
+    return "Pokračuj v progresi! Sleduj, jak se cítíš a přizpůsob trénink. Pokud stagnuješ, zvaž změnu schématu nebo deload.";
   }
 
   @override
@@ -519,27 +537,108 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
                     int exerciseIndex = entry.key;
                     Exercise exercise = entry.value;
 
-                    return AnimatedWorkoutCard(
-                      exercise: exercise,
-                      onDelete: () {
-                        setState(() {
-                          widget.currentWorkout.removeAt(exerciseIndex);
-                          widget.onUpdateWorkout(widget.currentWorkout);
-                          _calculateProgress();
-                        });
-                      },
-                      onSetsChanged: (updatedSets) {
-                        setState(() {
-                          exercise.sets = updatedSets;
-                          widget.onUpdateWorkout(widget.currentWorkout);
-                          _calculateProgress();
-                        });
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedWorkoutCard(
+                          exercise: exercise,
+                          onDelete: () {
+                            setState(() {
+                              widget.currentWorkout.removeAt(exerciseIndex);
+                              widget.onUpdateWorkout(widget.currentWorkout);
+                              _calculateProgress();
+                            });
+                          },
+                          onSetsChanged: (updatedSets) {
+                            setState(() {
+                              exercise.sets = updatedSets;
+                              widget.onUpdateWorkout(widget.currentWorkout);
+                              _calculateProgress();
+                            });
 
-                        // Pokud byla série označena jako dokončená, spustíme časovač
-                        if (updatedSets.any((s) => s.done)) {
-                          _startRestTimer();
-                        }
-                      },
+                            // Pokud byla série označena jako dokončená, spustíme časovač
+                            if (updatedSets.any((s) => s.done)) {
+                              _startRestTimer();
+                            }
+                          },
+                        ),
+                        // Kouč doporučuje
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8, left: 8, right: 8),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.psychology, color: Colors.blue, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  getSmartSuggestion(exercise.name),
+                                  style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.blue),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Zadání subjektivní náročnosti (RPE)
+                        Row(
+                          children: [
+                            const SizedBox(width: 16),
+                            const Text('Náročnost (RPE):', style: TextStyle(fontSize: 13, color: Colors.white70)),
+                            const SizedBox(width: 8),
+                            DropdownButton<int>(
+                              value: _exerciseRPE[exercise.id],
+                              items: List.generate(10, (i) => i + 1).map((rpe) => DropdownMenuItem(
+                                value: rpe,
+                                child: Text(rpe.toString()),
+                              )).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _exerciseRPE[exercise.id] = value!;
+                                });
+                              },
+                              dropdownColor: Colors.black,
+                              style: const TextStyle(color: Colors.white),
+                              underline: Container(height: 1, color: Colors.blue),
+                            ),
+                          ],
+                        ),
+                        // Původní poznámky (pokud jsou)
+                        if (exercise.notes.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.lightbulb_outline, 
+                                  color: Theme.of(context).primaryColor,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    exercise.notes, 
+                                    style: TextStyle(
+                                      fontStyle: FontStyle.italic, 
+                                      color: Colors.white.withOpacity(0.9),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     );
                   }),
               ],
@@ -571,23 +670,28 @@ class _WorkoutScreenState extends State<WorkoutScreen> with SingleTickerProvider
       ),
       // Floating Action Button pro uložení tréninku s animací
       floatingActionButton: widget.currentWorkout.isNotEmpty 
-        ? ScaleTransition(
-            scale: Tween<double>(
-              begin: 1.0,
-              end: 1.1,
-            ).animate(
-              CurvedAnimation(
-                parent: _fabAnimationController,
-                curve: Curves.elasticInOut,
-              ),
+        ? Padding(
+            padding: EdgeInsets.only(
+              bottom: (_restTimer != null && _restTimer!.isActive) ? 80.0 : 0.0,
             ),
-            child: FloatingActionButton.extended(
-              icon: const Icon(Icons.check),
-              label: const Text('Uložit trénink'),
-              backgroundColor: _completedSets == _totalSets && _totalSets > 0
-                ? Colors.green
-                : Theme.of(context).primaryColor,
-              onPressed: widget.onSave,
+            child: ScaleTransition(
+              scale: Tween<double>(
+                begin: 1.0,
+                end: 1.1,
+              ).animate(
+                CurvedAnimation(
+                  parent: _fabAnimationController,
+                  curve: Curves.elasticInOut,
+                ),
+              ),
+              child: FloatingActionButton.extended(
+                icon: const Icon(Icons.check),
+                label: const Text('Uložit trénink'),
+                backgroundColor: _completedSets == _totalSets && _totalSets > 0
+                  ? Colors.green
+                  : Theme.of(context).primaryColor,
+                onPressed: widget.onSave,
+              ),
             ),
           )
         : null,

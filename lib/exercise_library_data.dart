@@ -1,0 +1,92 @@
+import 'models.dart';
+
+List<LibraryExercise> getDefaultExerciseLibrary() {
+  return [
+    // Prsa
+    LibraryExercise(id: 'bench_press', name: 'Bench Press', group: 'Prsa', defaultRestTime: 120),
+    LibraryExercise(id: 'incline_bench_press', name: 'Incline Bench Press', group: 'Prsa', defaultRestTime: 120),
+    LibraryExercise(id: 'decline_bench_press', name: 'Decline Bench Press', group: 'Prsa', defaultRestTime: 120),
+    LibraryExercise(id: 'dumbbell_bench_press', name: 'Dumbbell Bench Press', group: 'Prsa', defaultRestTime: 90),
+    LibraryExercise(id: 'incline_dumbbell_press', name: 'Incline Dumbbell Press', group: 'Prsa', defaultRestTime: 90),
+    LibraryExercise(id: 'decline_dumbbell_press', name: 'Decline Dumbbell Press', group: 'Prsa', defaultRestTime: 90),
+    LibraryExercise(id: 'dumbbell_fly', name: 'Dumbbell Fly', group: 'Prsa', defaultRestTime: 90),
+    LibraryExercise(id: 'pec_deck', name: 'Pec Deck', group: 'Prsa', defaultRestTime: 90),
+    LibraryExercise(id: 'push_up', name: 'Kliky', group: 'Prsa', defaultRestTime: 60),
+    LibraryExercise(id: 'chest_dip', name: 'Chest Dips', group: 'Prsa', defaultRestTime: 90),
+    LibraryExercise(id: 'cable_crossover', name: 'Cable Crossover', group: 'Prsa', defaultRestTime: 60),
+    // Záda
+    LibraryExercise(id: 'pull_up', name: 'Shyby', group: 'Záda', defaultRestTime: 120),
+    LibraryExercise(id: 'chin_up', name: 'Chin-up', group: 'Záda', defaultRestTime: 120),
+    LibraryExercise(id: 'lat_pulldown', name: 'Stahování kladky', group: 'Záda', defaultRestTime: 90),
+    LibraryExercise(id: 'barbell_row', name: 'Přítahy v předklonu', group: 'Záda', defaultRestTime: 120),
+    LibraryExercise(id: 'dumbbell_row', name: 'Jednoručka v předklonu', group: 'Záda', defaultRestTime: 90),
+    LibraryExercise(id: 'seated_row', name: 'Veslování', group: 'Záda', defaultRestTime: 90),
+    LibraryExercise(id: 't_bar_row', name: 'T-Bar Row', group: 'Záda', defaultRestTime: 120),
+    LibraryExercise(id: 'face_pull', name: 'Face Pull', group: 'Záda', defaultRestTime: 60),
+    LibraryExercise(id: 'deadlift', name: 'Mrtvý tah', group: 'Záda', defaultRestTime: 180),
+    LibraryExercise(id: 'rack_pull', name: 'Rack Pull', group: 'Záda', defaultRestTime: 120),
+    LibraryExercise(id: 'good_morning', name: 'Good Morning', group: 'Záda', defaultRestTime: 90),
+    // Nohy
+    LibraryExercise(id: 'squat', name: 'Dřep', group: 'Nohy', defaultRestTime: 180),
+    LibraryExercise(id: 'front_squat', name: 'Front Squat', group: 'Nohy', defaultRestTime: 150),
+    LibraryExercise(id: 'bulgarian_split_squat', name: 'Bulharský dřep', group: 'Nohy', defaultRestTime: 120),
+    LibraryExercise(id: 'leg_press', name: 'Leg Press', group: 'Nohy', defaultRestTime: 120),
+    LibraryExercise(id: 'lunge', name: 'Výpady', group: 'Nohy', defaultRestTime: 90),
+    LibraryExercise(id: 'step_up', name: 'Step-up', group: 'Nohy', defaultRestTime: 90),
+    LibraryExercise(id: 'leg_extension', name: 'Předkopávání', group: 'Nohy', defaultRestTime: 60),
+    LibraryExercise(id: 'leg_curl', name: 'Zakopávání', group: 'Nohy', defaultRestTime: 60),
+    LibraryExercise(id: 'calf_raise', name: 'Výpony lýtek', group: 'Nohy', defaultRestTime: 60),
+    LibraryExercise(id: 'hip_thrust', name: 'Hip Thrust', group: 'Nohy', defaultRestTime: 90),
+    LibraryExercise(id: 'glute_bridge', name: 'Glute Bridge', group: 'Nohy', defaultRestTime: 60),
+    // Ramena
+    LibraryExercise(id: 'shoulder_press', name: 'Tlaky na ramena', group: 'Ramena', defaultRestTime: 90),
+    LibraryExercise(id: 'dumbbell_shoulder_press', name: 'Tlaky jednoručkami', group: 'Ramena', defaultRestTime: 90),
+    LibraryExercise(id: 'arnold_press', name: 'Arnold Press', group: 'Ramena', defaultRestTime: 90),
+    LibraryExercise(id: 'lateral_raise', name: 'Upažování', group: 'Ramena', defaultRestTime: 60),
+    LibraryExercise(id: 'front_raise', name: 'Předpažování', group: 'Ramena', defaultRestTime: 60),
+    LibraryExercise(id: 'reverse_fly', name: 'Zapažování', group: 'Ramena', defaultRestTime: 60),
+    LibraryExercise(id: 'upright_row', name: 'Upright Row', group: 'Ramena', defaultRestTime: 60),
+    // Biceps
+    LibraryExercise(id: 'barbell_curl', name: 'Bicepsový zdvih', group: 'Biceps', defaultRestTime: 60),
+    LibraryExercise(id: 'dumbbell_curl', name: 'Biceps s jednoručkami', group: 'Biceps', defaultRestTime: 60),
+    LibraryExercise(id: 'hammer_curl', name: 'Hammer Curl', group: 'Biceps', defaultRestTime: 60),
+    LibraryExercise(id: 'concentration_curl', name: 'Concentration Curl', group: 'Biceps', defaultRestTime: 60),
+    LibraryExercise(id: 'preacher_curl', name: 'Preacher Curl', group: 'Biceps', defaultRestTime: 60),
+    LibraryExercise(id: 'cable_curl', name: 'Cable Curl', group: 'Biceps', defaultRestTime: 60),
+    // Triceps
+    LibraryExercise(id: 'triceps_pushdown', name: 'Stahování kladky na triceps', group: 'Triceps', defaultRestTime: 60),
+    LibraryExercise(id: 'overhead_triceps_extension', name: 'Overhead Triceps Extension', group: 'Triceps', defaultRestTime: 60),
+    LibraryExercise(id: 'skullcrusher', name: 'Skullcrusher', group: 'Triceps', defaultRestTime: 60),
+    LibraryExercise(id: 'dips', name: 'Dipy', group: 'Triceps', defaultRestTime: 90),
+    LibraryExercise(id: 'close_grip_bench_press', name: 'Close Grip Bench Press', group: 'Triceps', defaultRestTime: 90),
+    // Core
+    LibraryExercise(id: 'plank', name: 'Plank', group: 'Core', defaultRestTime: 60),
+    LibraryExercise(id: 'crunch', name: 'Zkracovačky', group: 'Core', defaultRestTime: 60),
+    LibraryExercise(id: 'leg_raise', name: 'Zvedání nohou vleže', group: 'Core', defaultRestTime: 60),
+    LibraryExercise(id: 'russian_twist', name: 'Ruský twist', group: 'Core', defaultRestTime: 60),
+    LibraryExercise(id: 'hanging_knee_raise', name: 'Hanging Knee Raise', group: 'Core', defaultRestTime: 60),
+    LibraryExercise(id: 'ab_wheel_rollout', name: 'Ab Wheel Rollout', group: 'Core', defaultRestTime: 60),
+    LibraryExercise(id: 'side_plank', name: 'Side Plank', group: 'Core', defaultRestTime: 60),
+    LibraryExercise(id: 'mountain_climbers', name: 'Mountain Climbers', group: 'Core', defaultRestTime: 60),
+    // Kardio
+    LibraryExercise(id: 'running', name: 'Běh', group: 'Kardio', defaultRestTime: 0),
+    LibraryExercise(id: 'cycling', name: 'Kolo', group: 'Kardio', defaultRestTime: 0),
+    LibraryExercise(id: 'rowing', name: 'Veslo', group: 'Kardio', defaultRestTime: 0),
+    LibraryExercise(id: 'jump_rope', name: 'Švihadlo', group: 'Kardio', defaultRestTime: 0),
+    LibraryExercise(id: 'elliptical', name: 'Eliptical', group: 'Kardio', defaultRestTime: 0),
+    LibraryExercise(id: 'stair_climber', name: 'Stair Climber', group: 'Kardio', defaultRestTime: 0),
+    LibraryExercise(id: 'hiit', name: 'HIIT', group: 'Kardio', defaultRestTime: 0),
+    // Vlastní váha
+    LibraryExercise(id: 'burpee', name: 'Burpee', group: 'Vlastní váha', defaultRestTime: 60),
+    LibraryExercise(id: 'pistol_squat', name: 'Pistol Squat', group: 'Vlastní váha', defaultRestTime: 90),
+    LibraryExercise(id: 'wall_sit', name: 'Wall Sit', group: 'Vlastní váha', defaultRestTime: 60),
+    // Stroje
+    LibraryExercise(id: 'leg_abduction', name: 'Leg Abduction Machine', group: 'Stroje', defaultRestTime: 60),
+    LibraryExercise(id: 'leg_adduction', name: 'Leg Adduction Machine', group: 'Stroje', defaultRestTime: 60),
+    LibraryExercise(id: 'smith_machine_squat', name: 'Smith Machine Squat', group: 'Stroje', defaultRestTime: 120),
+    // Gumy
+    LibraryExercise(id: 'band_pull_apart', name: 'Band Pull Apart', group: 'Gumy', defaultRestTime: 60),
+    LibraryExercise(id: 'banded_squat', name: 'Banded Squat', group: 'Gumy', defaultRestTime: 60),
+    LibraryExercise(id: 'banded_row', name: 'Banded Row', group: 'Gumy', defaultRestTime: 60),
+  ];
+} 

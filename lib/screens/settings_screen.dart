@@ -4,6 +4,10 @@ import '../widgets/glassmorphic_card.dart';
 import '../notification_service.dart';
 import '../database_helper.dart';
 import '../models.dart';
+import '../coach_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import '../storage.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Profile profile;
@@ -28,11 +32,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _ageController;
   late TextEditingController _heightController;
   String _selectedGender = 'Jiné';
+  String _selectedGoal = 'Síla';
   bool _notificationsEnabled = true;
   TimeOfDay _workoutReminderTime = const TimeOfDay(hour: 18, minute: 0);
   List<int> _workoutDays = [1, 3, 5]; // Po, St, Pá
   bool _deloadReminders = true;
   bool _restDayReminders = true;
+  List<String> _hiddenTipIds = [];
+  List<CoachTip> _allCoachTips = [];
+  final WorkoutStorage _workoutStorage = getWorkoutStorage();
+  final DatabaseHelper _databaseHelper = DatabaseHelper();
 
   @override
   void initState() {
@@ -41,7 +50,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _ageController = TextEditingController(text: widget.profile.age);
     _heightController = TextEditingController(text: widget.profile.height);
     _selectedGender = widget.profile.gender;
+    _selectedGoal = widget.profile.goal;
     _loadSettings();
+    _loadHiddenTips();
+    _loadAllCoachTips();
   }
 
   @override
@@ -55,6 +67,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     // Načtení nastavení z SharedPreferences
     // Toto je zjednodušená verze - v reálné aplikaci byste načítali z databáze
+  }
+
+  void _loadHiddenTips() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _hiddenTipIds = prefs.getStringList('hiddenCoachTips') ?? [];
+    });
+  }
+
+  void _resetHiddenTips() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('hiddenCoachTips', []);
+    setState(() {
+      _hiddenTipIds = [];
+    });
+  }
+
+  void _loadAllCoachTips() {
+    // Vytvoř CoachService s prázdnými daty, abych získal všechny možné tipy
+    final coach = CoachService(profile: widget.profile, workouts: [], weightHistory: []);
+    final tips = coach.getTips(hiddenTipIds: []);
+    // Pro zobrazení všech tipů získám všechny unikátní tipy (včetně těch, které by se normálně nezobrazily)
+    final all = <String, CoachTip>{};
+    for (var tip in tips) {
+      all[tip.id] = tip;
+    }
+    // Přidám i statické tipy (ručně)
+    for (var staticTip in [
+      CoachTip('warmup', "Nezapomeň na rozcvičení! Dej si 5 minut lehkého kardio a dynamický strečink."),
+      CoachTip('stretch', "Skvělá práce! Nezapomeň na protažení a doplnění tekutin."),
+      CoachTip('motivation_consistency', "Důležitá je pravidelnost, ne dokonalost!"),
+      CoachTip('motivation_small_steps', "I malý pokrok je pokrok. Každý trénink se počítá!"),
+      CoachTip('motivation_enjoy', "Užívej si cestu, nejen cíl."),
+      CoachTip('motivation_rest', "Regenerace je stejně důležitá jako trénink."),
+      CoachTip('motivation_celebrate', "Oslav každý úspěch, i ten malý!"),
+      CoachTip('recovery_sleep', "Dostatek spánku je základ pro růst i regeneraci."),
+      CoachTip('recovery_nutrition', "Nezapomeň na kvalitní stravu po tréninku – bílkoviny a sacharidy pomáhají regeneraci."),
+      CoachTip('technique_breath', "Správné dýchání ti pomůže zvládnout těžké série. Nadechni se před opakováním a vydechuj při zvedání."),
+      CoachTip('technique_control', "Cvič kontrolovaně, neházej s činkou. Pomalejší pohyb = lepší technika a menší riziko zranění."),
+    ]) {
+      all[staticTip.id] = staticTip;
+    }
+    setState(() {
+      _allCoachTips = all.values.toList();
+    });
   }
 
   @override
@@ -78,6 +135,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildDataSection(),
             const SizedBox(height: 24),
             _buildAboutSection(),
+            const SizedBox(height: 24),
+            _buildCoachTipsSection(),
           ],
         ),
       ),
@@ -98,6 +157,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 16),
+            
+            // Výběr cíle tréninku
+            DropdownButtonFormField<String>(
+              value: _selectedGoal,
+              decoration: const InputDecoration(
+                labelText: 'Cíl tréninku',
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+              ),
+              dropdownColor: AppTheme.cardColor,
+              style: const TextStyle(color: Colors.white),
+              items: ['Síla', 'Objem', 'Vytrvalost', 'Hubnutí'].map((goal) {
+                return DropdownMenuItem(value: goal, child: Text(goal));
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedGoal = value!;
+                });
+              },
+            ),
+            
             const SizedBox(height: 16),
             
             // Jméno
@@ -373,6 +457,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildCoachTipsSection() {
+    return GlassmorphicCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.tips_and_updates, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text('Tipy kouče', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                TextButton(
+                  onPressed: _resetHiddenTips,
+                  child: const Text('Obnovit všechny tipy', style: TextStyle(color: Colors.blue)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('Zde můžeš zobrazit všechny tipy kouče a případně je znovu povolit.', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 12),
+            ..._allCoachTips.map((tip) => ListTile(
+              leading: Icon(Icons.tips_and_updates, color: Colors.blue),
+              title: Text(tip.text, style: TextStyle(color: Colors.white)),
+              trailing: _hiddenTipIds.contains(tip.id)
+                ? Icon(Icons.visibility_off, color: Colors.red)
+                : Icon(Icons.visibility, color: Colors.green),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDayChip(String label, int day) {
     final isSelected = _workoutDays.contains(day);
     return FilterChip(
@@ -409,16 +528,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveProfile() async {
     final updatedProfile = Profile(
+      name: _nameController.text,
       age: _ageController.text,
       height: _heightController.text,
       gender: _selectedGender,
+      goal: _selectedGoal,
     );
-    
     widget.onProfileUpdate(updatedProfile);
-    
-    // Uložení do databáze
-    final db = DatabaseHelper();
-    await db.saveProfile(updatedProfile, name: _nameController.text);
+    if (kIsWeb) {
+      await _workoutStorage.saveProfile(updatedProfile);
+    } else {
+      await _databaseHelper.saveProfile(updatedProfile);
+    }
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

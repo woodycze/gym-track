@@ -43,7 +43,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with TickerProvider
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Statistiky'),
+        // title: const Text('Statistiky'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         bottom: TabBar(
@@ -163,14 +163,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> with TickerProvider
   Widget _buildPerformanceTab() {
     final filteredWorkouts = _getFilteredWorkouts();
     final performanceData = _getPerformanceData(filteredWorkouts);
-    
+    final volumeData = _getVolumeData(filteredWorkouts);
+    final prediction = _getPrediction(performanceData);
+    final splitRecommendation = _getSplitRecommendation(performanceData);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           _buildPeriodSelector(),
           const SizedBox(height: 20),
-          
           // Graf progrese
           GlassmorphicCard(
             child: Padding(
@@ -194,9 +195,66 @@ class _StatisticsScreenState extends State<StatisticsScreen> with TickerProvider
               ),
             ),
           ),
-          
           const SizedBox(height: 20),
-          
+          // Graf objemu
+          GlassmorphicCard(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Celkový objem (kg)',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 200,
+                    child: _buildVolumeChart(volumeData),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Predikce a doporučení
+          if (prediction != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.trending_up, color: Colors.blue, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(prediction, style: const TextStyle(color: Colors.blue))),
+                ],
+              ),
+            ),
+          if (splitRecommendation != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.tips_and_updates, color: Colors.amber, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(splitRecommendation, style: const TextStyle(color: Colors.amber))),
+                ],
+              ),
+            ),
+          const SizedBox(height: 20),
           // Nejlepší výkony
           GlassmorphicCard(
             child: Padding(
@@ -212,8 +270,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> with TickerProvider
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ..._getBestPerformances(filteredWorkouts).map((performance) => 
-                    Padding(
+                  ..._getBestPerformances(filteredWorkouts).map((performance) {
+                    // Najdi aktuální váhu (poslední záznam)
+                    double? currentWeight = widget.weightHistory.isNotEmpty ? widget.weightHistory.first.weight : null;
+                    String relStrength = '';
+                    if (currentWeight != null && currentWeight > 0) {
+                      final ratio = performance.weight / currentWeight;
+                      relStrength = ' (${ratio.toStringAsFixed(2)}× tělesné hmotnosti)';
+                    }
+                    return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Row(
                         children: [
@@ -224,15 +289,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> with TickerProvider
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(performance.exerciseName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                Text('${performance.weight}kg × ${performance.reps} opakování', style: const TextStyle(color: Colors.white70)),
+                                Text('${performance.weight}kg × ${performance.reps} opakování$relStrength', style: const TextStyle(color: Colors.white70)),
                               ],
                             ),
                           ),
                           Text(performance.date, style: const TextStyle(color: Colors.white60)),
                         ],
                       ),
-                    ),
-                  ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -462,8 +527,60 @@ class _StatisticsScreenState extends State<StatisticsScreen> with TickerProvider
   }
 
   Widget _buildProgressChart(List<PerformanceData> data) {
-    // Implementace grafu progrese
-    return Container(); // Placeholder
+    if (data.isEmpty) {
+      return const Center(child: Text('Žádná data', style: TextStyle(color: Colors.white70)));
+    }
+    // Skupiny podle cviku
+    final exercises = data.map((d) => d.exerciseName).toSet().toList();
+    final colors = [Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red];
+    List<LineChartBarData> lines = [];
+    int colorIdx = 0;
+    for (var exercise in exercises) {
+      final exerciseData = data.where((d) => d.exerciseName == exercise).toList();
+      if (exerciseData.length < 2) continue;
+      // Body grafu
+      final spots = exerciseData.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.weight)).toList();
+      // Trendová čára (lineární regrese)
+      final n = spots.length;
+      final xMean = spots.map((s) => s.x).reduce((a, b) => a + b) / n;
+      final yMean = spots.map((s) => s.y).reduce((a, b) => a + b) / n;
+      final numerator = spots.map((s) => (s.x - xMean) * (s.y - yMean)).reduce((a, b) => a + b);
+      final denominator = spots.map((s) => (s.x - xMean) * (s.x - xMean)).reduce((a, b) => a + b);
+      final slope = denominator == 0 ? 0 : numerator / denominator;
+      final intercept = yMean - slope * xMean;
+      final trendSpots = [
+        FlSpot(0, intercept),
+        FlSpot((n - 1).toDouble(), intercept + slope * (n - 1)),
+      ];
+      // Linie výkonu
+      lines.add(LineChartBarData(
+        spots: spots,
+        isCurved: true,
+        color: colors[colorIdx % colors.length],
+        barWidth: 3,
+        dotData: FlDotData(show: true),
+        belowBarData: BarAreaData(show: false),
+      ));
+      // Trendová čára
+      lines.add(LineChartBarData(
+        spots: trendSpots,
+        isCurved: false,
+        color: colors[colorIdx % colors.length].withOpacity(0.5),
+        barWidth: 2,
+        dashArray: [8, 4],
+        dotData: FlDotData(show: false),
+        belowBarData: BarAreaData(show: false),
+      ));
+      colorIdx++;
+    }
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(show: false),
+        titlesData: FlTitlesData(show: false),
+        borderData: FlBorderData(show: false),
+        lineBarsData: lines,
+      ),
+    );
   }
 
   List<BestPerformance> _getBestPerformances(List<Workout> workouts) {
@@ -540,6 +657,100 @@ class _StatisticsScreenState extends State<StatisticsScreen> with TickerProvider
     final sum = weightHistory.fold(0.0, (sum, entry) => sum + entry.weight);
     return (sum / weightHistory.length).toStringAsFixed(1);
   }
+
+  // --- Nové: graf objemu ---
+  List<VolumeData> _getVolumeData(List<Workout> workouts) {
+    return workouts.map((w) {
+      double total = 0;
+      for (var ex in w.exercises) {
+        for (var set in ex.sets) {
+          total += set.weight * set.reps;
+        }
+      }
+      return VolumeData(date: DateTime.fromMillisecondsSinceEpoch(w.date), volume: total);
+    }).toList();
+  }
+
+  Widget _buildVolumeChart(List<VolumeData> data) {
+    if (data.isEmpty) {
+      return const Center(child: Text('Žádná data', style: TextStyle(color: Colors.white70)));
+    }
+    final spots = data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.volume)).toList();
+    // Trendová čára
+    final n = spots.length;
+    final xMean = spots.map((s) => s.x).reduce((a, b) => a + b) / n;
+    final yMean = spots.map((s) => s.y).reduce((a, b) => a + b) / n;
+    final numerator = spots.map((s) => (s.x - xMean) * (s.y - yMean)).reduce((a, b) => a + b);
+    final denominator = spots.map((s) => (s.x - xMean) * (s.x - xMean)).reduce((a, b) => a + b);
+    final slope = denominator == 0 ? 0 : numerator / denominator;
+    final intercept = yMean - slope * xMean;
+    final trendSpots = [
+      FlSpot(0, intercept),
+      FlSpot((n - 1).toDouble(), intercept + slope * (n - 1)),
+    ];
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(show: false),
+        titlesData: FlTitlesData(show: false),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: Colors.teal,
+            barWidth: 3,
+            dotData: FlDotData(show: true),
+            belowBarData: BarAreaData(show: false),
+          ),
+          LineChartBarData(
+            spots: trendSpots,
+            isCurved: false,
+            color: Colors.teal.withOpacity(0.5),
+            barWidth: 2,
+            dashArray: [8, 4],
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(show: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Nové: predikce ---
+  String? _getPrediction(List<PerformanceData> data) {
+    if (data.isEmpty) return null;
+    // Vezmeme poslední trendovou čáru hlavního cviku
+    final mainExercise = data.map((d) => d.exerciseName).toList().isNotEmpty ? data[0].exerciseName : null;
+    final mainData = data.where((d) => d.exerciseName == mainExercise).toList();
+    if (mainData.length < 2) return null;
+    final spots = mainData.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.weight)).toList();
+    final n = spots.length;
+    final xMean = spots.map((s) => s.x).reduce((a, b) => a + b) / n;
+    final yMean = spots.map((s) => s.y).reduce((a, b) => a + b) / n;
+    final numerator = spots.map((s) => (s.x - xMean) * (s.y - yMean)).reduce((a, b) => a + b);
+    final denominator = spots.map((s) => (s.x - xMean) * (s.x - xMean)).reduce((a, b) => a + b);
+    final slope = denominator == 0 ? 0 : numerator / denominator;
+    final intercept = yMean - slope * xMean;
+    final nextX = n + 4; // cca měsíc dopředu (4 týdny)
+    final predicted = intercept + slope * nextX;
+    if (slope.abs() < 0.01) return null; // pokud je trend plochý, nepredikujeme
+    return 'Pokud budeš pokračovat tímto tempem, za měsíc zvládneš cca ${predicted.toStringAsFixed(1)} kg na cviku $mainExercise.';
+  }
+
+  // --- Nové: doporučení změny splitu/plánu ---
+  String? _getSplitRecommendation(List<PerformanceData> data) {
+    if (data.length < 3) return null;
+    final mainExercise = data.map((d) => d.exerciseName).toList().isNotEmpty ? data[0].exerciseName : null;
+    final mainData = data.where((d) => d.exerciseName == mainExercise).toList();
+    if (mainData.length < 3) return null;
+    final s1 = mainData[mainData.length - 1].weight;
+    final s2 = mainData[mainData.length - 2].weight;
+    final s3 = mainData[mainData.length - 3].weight;
+    if ((s1 == s2 && s2 == s3) || (s1 < s2 && s2 <= s3)) {
+      return 'Zdá se, že stagnuješ na cviku $mainExercise. Zvaž změnu splitu, přidej nový cvik nebo zařaď deload!';
+    }
+    return null;
+  }
 }
 
 class WorkoutStats {
@@ -587,4 +798,11 @@ class BestPerformance {
     required this.reps,
     required this.date,
   });
+} 
+
+// --- datová třída pro objem ---
+class VolumeData {
+  final DateTime date;
+  final double volume;
+  VolumeData({required this.date, required this.volume});
 } 

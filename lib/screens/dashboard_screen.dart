@@ -4,6 +4,7 @@ import '../widgets/glassmorphic_card.dart';
 import '../theme.dart';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../coach_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String title = 'Přehled';
@@ -11,6 +12,7 @@ class DashboardScreen extends StatefulWidget {
   final List<WorkoutTemplate> templates;
   final List<Workout> pastWorkouts;
   final Function(DateTime date, {List<Exercise>? templateExercises}) onStartWorkout;
+  final Profile profile;
 
   const DashboardScreen({
     super.key,
@@ -18,6 +20,7 @@ class DashboardScreen extends StatefulWidget {
     required this.templates,
     required this.pastWorkouts,
     required this.onStartWorkout,
+    required this.profile,
   });
 
   @override
@@ -27,7 +30,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   bool _isLoaded = false;
-  String _userName = 'uživateli';
+  List<String> _hiddenTipIds = [];
 
   @override
   void initState() {
@@ -36,7 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _loadName();
+    _loadHiddenTips();
     // Spustit animace po načtení UI
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
@@ -46,10 +49,18 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     });
   }
 
-  void _loadName() async {
+  void _loadHiddenTips() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userName = prefs.getString('userName')?.isNotEmpty == true ? prefs.getString('userName')! : 'uživateli';
+      _hiddenTipIds = prefs.getStringList('hiddenCoachTips') ?? [];
+    });
+  }
+
+  void _hideTip(String tipId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _hiddenTipIds.add(tipId);
+      prefs.setStringList('hiddenCoachTips', _hiddenTipIds);
     });
   }
 
@@ -62,7 +73,15 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final userName = _userName;
+    final userName = widget.profile.name.isNotEmpty ? widget.profile.name : 'uživateli';
+
+    // --- Nové: Generování tipů pomocí CoachService ---
+    final coach = CoachService(
+      profile: widget.profile,
+      workouts: widget.pastWorkouts,
+      weightHistory: [], // můžeš doplnit pokud máš
+    );
+    final tips = coach.getTips(hiddenTipIds: _hiddenTipIds);
 
     return SafeArea(
       child: CustomScrollView(
@@ -96,6 +115,34 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       _getMotivationalQuote(),
                       style: theme.textTheme.titleMedium?.copyWith(color: Colors.white60),
                     ),
+                    const SizedBox(height: 12),
+                    ...tips.map((tip) => Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.tips_and_updates, color: Colors.blue, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              tip.text,
+                              style: const TextStyle(fontSize: 15, color: Colors.blue),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.blue, size: 18),
+                            tooltip: 'Skrýt tento tip',
+                            onPressed: () => _hideTip(tip.id),
+                          ),
+                        ],
+                      ),
+                    )),
                   ],
                 ),
               ),
@@ -461,97 +508,113 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     final monthProgress = (workoutsThisMonth / (workoutsLastMonth > 0 ? workoutsLastMonth : 1));
     final trend = monthProgress > 1 ? 'Lepší než minulý měsíc!' : 'Pokračuj v tréninku!'; 
 
-    return GlassmorphicCard(
-      borderRadius: 24,
-      blur: 15,
-      opacity: 0.1,
-      borderWidth: 1.5,
-      borderColor: Colors.white,
-      child: Column(
-        children: [
-          // Header s ikonou
-          Row(
+    return Column(
+      children: [
+        GlassmorphicCard(
+          borderRadius: 24,
+          blur: 15,
+          opacity: 0.1,
+          borderWidth: 1.5,
+          borderColor: Colors.white,
+          child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.insert_chart,
-                  color: Colors.amber,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Tvoje statistiky', 
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Statistiky
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              // Tréninky tento měsíc
-              _buildStatCard(
-                context: context,
-                value: workoutsThisMonth.toString(),
-                label: 'Tréninky tento měsíc',
-                icon: Icons.calendar_month,
-                color: theme.primaryColor,
-              ),
-
-              // Celkem tréninků
-              _buildStatCard(
-                context: context,
-                value: totalWorkouts.toString(),
-                label: 'Celkem tréninků',
-                icon: Icons.fitness_center,
-                color: AppTheme.accentColor,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Trend
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            decoration: BoxDecoration(
-              color: (monthProgress > 1 ? Colors.green : Colors.amber).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  monthProgress > 1 ? Icons.trending_up : Icons.trending_flat,
-                  color: monthProgress > 1 ? Colors.green : Colors.amber,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    trend,
-                    style: TextStyle(
-                      color: monthProgress > 1 ? Colors.green : Colors.amber,
-                      fontWeight: FontWeight.w500,
+              // Header s ikonou
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.insert_chart,
+                      color: Colors.amber,
+                      size: 24,
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Tvoje statistiky', 
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Statistiky
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  // Tréninky tento měsíc
+                  _buildStatCard(
+                    context: context,
+                    value: workoutsThisMonth.toString(),
+                    label: 'Tréninky tento měsíc',
+                    icon: Icons.calendar_month,
+                    color: theme.primaryColor,
+                  ),
+
+                  // Celkem tréninků
+                  _buildStatCard(
+                    context: context,
+                    value: totalWorkouts.toString(),
+                    label: 'Celkem tréninků',
+                    icon: Icons.fitness_center,
+                    color: AppTheme.accentColor,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Trend
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: (monthProgress > 1 ? Colors.green : Colors.amber).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      monthProgress > 1 ? Icons.trending_up : Icons.trending_flat,
+                      color: monthProgress > 1 ? Colors.green : Colors.amber,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        trend,
+                        style: TextStyle(
+                          color: monthProgress > 1 ? Colors.green : Colors.amber,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('Navrhnout plán na týden'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryColor,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          onPressed: _generateWeeklyPlan,
+        ),
+      ],
     );
   }
 
@@ -588,6 +651,26 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               color: Colors.white70,
             ),
             textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _generateWeeklyPlan() {
+    // Základní logika pro generování plánu podle profilu a historie
+    final goal = widget.profile.goal;
+    // TODO: Vygenerovat plán podle cíle a historie
+    // Pro ukázku zobrazíme dialog s návrhem
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Návrh plánu na týden'),
+        content: Text('Cíl: $goal\n\n(Tady bude vygenerovaný plán na míru podle tvého profilu a historie)'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Zavřít'),
           ),
         ],
       ),

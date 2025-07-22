@@ -13,8 +13,24 @@ import 'screens/settings_screen.dart';
 import 'theme.dart';
 import 'database_helper.dart';
 import 'notification_service.dart';
+import 'exercise_library_data.dart';
+import 'storage.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: "AIzaSyBosRD3w2c3eru12eGxlw5PNKPSpBPdm-k",
+      authDomain: "gym-track001.firebaseapp.com",
+      projectId: "gym-track001",
+      storageBucket: "gym-track001.appspot.com",
+      messagingSenderId: "510293103692",
+      appId: "1:510293103692:web:693d3feb8837262f9950e9",
+      measurementId: "G-W2V4L8JHC6",
+    ),
+  );
   runApp(const MyApp());
 }
 
@@ -71,6 +87,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   DateTime? _lastWorkoutDate;
   
   // Databáze a notifikace
+  final WorkoutStorage _workoutStorage = getWorkoutStorage();
   final DatabaseHelper _databaseHelper = DatabaseHelper();
   final NotificationService _notificationService = NotificationService();
 
@@ -99,13 +116,23 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   Future<void> _loadData() async {
     try {
-      // Načtení dat z databáze
-      final workouts = await _databaseHelper.getWorkouts();
-      final exercises = await _databaseHelper.getLibraryExercises();
-      final templates = await _databaseHelper.getWorkoutTemplates();
-      final weightHistory = await _databaseHelper.getWeightEntries();
-      final profile = await _databaseHelper.getProfile();
-      
+      // Načtení dat z úložiště
+      final workouts = await _workoutStorage.getWorkouts();
+      List<LibraryExercise> exercises;
+      List<WorkoutTemplate> templates;
+      List<WeightEntry> weightHistory;
+      Profile? profile;
+      if (kIsWeb) {
+        exercises = await _workoutStorage.getLibraryExercises();
+        templates = await _workoutStorage.getWorkoutTemplates();
+        weightHistory = await _workoutStorage.getWeightHistory();
+        profile = await _workoutStorage.getProfile();
+      } else {
+        exercises = await _databaseHelper.getLibraryExercises();
+        templates = await _databaseHelper.getWorkoutTemplates();
+        weightHistory = await _databaseHelper.getWeightEntries();
+        profile = await _databaseHelper.getProfile();
+      }
       setState(() {
         _pastWorkouts = workouts;
         _exerciseLibrary = exercises;
@@ -149,11 +176,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         Workout(date: DateTime.now().subtract(const Duration(days: 14)).millisecondsSinceEpoch, exercises: [Exercise(id: '1', name: 'Bench Press', sets: [ExerciseSet(weight: 105, reps: 4)])]),
         Workout(date: DateTime.now().subtract(const Duration(days: 7)).millisecondsSinceEpoch, exercises: [Exercise(id: '1', name: 'Bench Press', sets: [ExerciseSet(weight: 102.5, reps: 5)])]),
       ];
-      _exerciseLibrary = [
-        LibraryExercise(id: '1', name: 'Bench Press', group: 'Prsa', defaultRestTime: 120),
-        LibraryExercise(id: '2', name: 'Dřep', group: 'Nohy', defaultRestTime: 180),
-        LibraryExercise(id: '3', name: 'Mrtvý tah', group: 'Záda'),
-      ];
+      _exerciseLibrary = getDefaultExerciseLibrary();
       _workoutTemplates = [
         WorkoutTemplate(id: 't1', name: 'Full Body A', exercises: [
           Exercise(id: 't1e1', name: 'Dřep', sets: [ExerciseSet(weight: 100, reps: 5)]),
@@ -201,8 +224,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     final workout = Workout(date: dateToSave, exercises: _currentWorkout);
     
     try {
-      // Uložení do databáze
-      await _databaseHelper.insertWorkout(workout);
+      // Uložení do úložiště
+      await _workoutStorage.insertWorkout(workout);
       
       // Aktualizace UI
       setState(() {
@@ -236,7 +259,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           duration: const Duration(seconds: 2),
         ),
       );
-    } catch (e) {
+    } catch (e, stack) {
+      print('Chyba při ukládání tréninku:');
+      print(e);
+      print(stack);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(
@@ -295,8 +321,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         defaultRestTime: defaultRest,
       ));
     });
-
-    // Poskytnutí zpětné vazby
+    if (kIsWeb) {
+      _workoutStorage.saveLibraryExercises(_exerciseLibrary);
+    } else {
+      // SQLite: není potřeba, ukládá se automaticky
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Cvik "$name" byl přidán do knihovny'),
@@ -346,6 +375,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         ),
       );
     });
+    if (kIsWeb) {
+      _workoutStorage.saveWorkoutTemplates(_workoutTemplates);
+    } else {
+      // SQLite: není potřeba, ukládá se automaticky
+    }
   }
 
   void _deleteTemplate(String templateId) {
@@ -370,6 +404,23 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           },
         ),
       ),
+    );
+    if (kIsWeb) {
+      _workoutStorage.saveWorkoutTemplates(_workoutTemplates);
+    }
+  }
+
+  void _saveProfile(Profile profile) async {
+    setState(() {
+      _profile = profile;
+    });
+    if (kIsWeb) {
+      await _workoutStorage.saveProfile(profile);
+    } else {
+      await _databaseHelper.saveProfile(profile);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Profil uložen!')),
     );
   }
 
@@ -486,6 +537,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         templates: _workoutTemplates,
         pastWorkouts: _pastWorkouts,
         onStartWorkout: _startWorkoutForDate,
+        profile: _profile,
       ),
       CalendarScreen(
         pastWorkouts: _pastWorkouts,
@@ -506,7 +558,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         onAddOrUpdateTemplate: _addOrUpdateTemplate,
         onDeleteTemplate: _deleteTemplate,
       ),
-      ProfileScreen(pastWorkouts: _pastWorkouts),
+      ProfileScreen(
+        pastWorkouts: _pastWorkouts,
+        profile: _profile,
+        onEditProfile: (profile) {
+          setState(() {
+            _profile = profile;
+          });
+        },
+      ),
     ];
 
     final String currentTitle = _isWorkoutActive
@@ -589,6 +649,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 });
               },
               onDismissNotification: _dismissNotification,
+              profile: _profile,
             )
           : PageView(
               controller: _pageController,

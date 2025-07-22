@@ -47,6 +47,8 @@ dependencies:
   
   # Web podpora
   universal_html: ^2.2.4
+  cloud_firestore: ^4.9.2
+  firebase_core: ^2.30.0
 
   flutter_localizations:
     sdk: flutter

@@ -75,10 +75,12 @@ class WeightEntry {
 }
 
 class Profile {
+  String name;
   String age;
   String height;
   String gender;
-  Profile({this.age = '', this.height = '', this.gender = 'Jiné'});
+  String goal;
+  Profile({this.name = '', this.age = '', this.height = '', this.gender = 'Jiné', this.goal = 'Síla'});
 }
 
 class AppNotification {

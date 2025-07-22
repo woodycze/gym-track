@@ -125,7 +125,8 @@ class DatabaseHelper {
         age TEXT,
         height TEXT,
         gender TEXT,
-        name TEXT
+        name TEXT,
+        goal TEXT
       )
     ''');
   }
@@ -354,6 +355,7 @@ class DatabaseHelper {
       'height': profile.height,
       'gender': profile.gender,
       'name': name,
+      'goal': profile.goal,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -367,6 +369,7 @@ class DatabaseHelper {
       age: maps.first['age'] ?? '',
       height: maps.first['height'] ?? '',
       gender: maps.first['gender'] ?? 'Jiné',
+      goal: maps.first['goal'] ?? 'Síla',
     );
   }
 
